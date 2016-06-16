@@ -1,0 +1,137 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewBag.Title - My ASP.NET Application</title>
+    <link href="~/Content/Site.css" rel="stylesheet" type="text/css" />
+    <link href="~/Content/bootstrap.min.css" rel="stylesheet" type="text/css" />
+    <script src="~/Scripts/modernizr-2.6.2.js"></script>
+</head>
+<body>
+    <div class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                @Html.ActionLink("Pusher Lab", "Send", "Pusher", new { area = "" }, new { @class = "navbar-brand" })
+                @Html.ActionLink("SignalR Lab", "Send", "SignalRPush", new { area = "" }, new { @class = "navbar-brand" })
+            </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid body-content">
+        <div class="row">
+            <div class="col-sm-9">@RenderBody()</div>
+            <div class="col-sm-3">
+                <h3>&nbsp;</h3>
+                <div class="panel panel-default">
+                    <div class="panel-heading">Push Messages</div>
+                    <div id="messages" class="panel-body">
+
+                    </div>
+                </div>
+                <div class="panel panel-success">
+                    <div class="panel-heading">SignalR Messages</div>
+                    <div id="messagesR" class="panel-body">
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        <hr />
+        <footer>
+            <p>&copy; @DateTime.Now.Year - My ASP.NET Application</p>
+        </footer>
+    </div>
+
+    <script src="~/Scripts/jquery-1.10.2.min.js"></script>
+    <script src="~/Scripts/bootstrap.min.js"></script>
+    <script src="https://js.pusher.com/3.1/pusher.min.js"></script>
+
+    <script src="~/Scripts/jquery.signalR-2.2.0.min.js"></script>
+    <script src="/signalr/hubs"></script>
+
+    @RenderSection("scripts", required: false)
+    <script>
+        // Enable pusher logging - don't include this in production
+        //   Pusher.logToConsole = true;
+        var pusher = new Pusher('a1db9827052609eb5bd4', {
+            encrypted: true
+        });
+        var readUrl = '@Url.Action("Read","Pusher",new {id=0 })';
+        var channel = pusher.subscribe('1000_GRV');
+        channel.bind('my_event', BindToHtml);
+
+        channel.bind('read_event', function (data) {
+            $('#m_' + data.ID).remove();
+        });
+
+
+        $.get('@Url.Action("GetUnRead","Pusher")').success(function (response) {
+            for (var i = 0; i < response.length; i++) {
+                BindToHtml(response[i]);
+            }
+        });
+
+        function BindToHtml(data) {
+            $('#messages').html($('#messages').html() + "<p id='m_" + data.ID + "'><a href='" + readUrl.replace('0', data.ID) + "' >" + data.Channel + " : " + data.Name + " : " + data.Message + "</a></p>");
+        }
+    </script>
+
+    <script>
+        //Signal R
+        var readUrlR = '@Url.Action("Read", "SignalRPush", new {id=0 })';
+        var chat = $.connection.messageHub;
+        chat.client.addMessage = function (message) {
+            BindToHtmlSignalR(message);
+        };
+
+        //chat.client.registerCompleted = function (messages) {
+        //    console.log(messages);
+        //    $('#messagesR').html('');
+        //    for (var i = 0; i < messages.length; i++) {
+        //        BindToHtmlSignalR(messages[i]);
+        //    }
+        //};
+
+
+        chat.client.removeMessage = function (messages) {
+            console.log("removeMessage");
+            console.log(messages);
+            $('#mr_' + messages.ID).remove();
+        };
+
+        $.connection.hub.start().done(function () {//webSockets、longPolling、serverSentEvents、foreverFrame
+            chat.server.register("1100-GRV");
+            chat.server.register("1100-GRV2");
+        })
+        .fail(function () {
+            alert("Error connecting to realtime service");
+        });
+
+
+        $.get('@Url.Action("GetUnRead", "SignalRPush", new {channel= "1100-GRV" })').success(function (response) {
+            for (var i = 0; i < response.length; i++) {
+                BindToHtmlSignalR(response[i]);
+            }
+        });
+
+
+        function BindToHtmlSignalR(data) {
+            $('#messagesR').html($('#messagesR').html() + "<p id='mr_" + data.ID + "'><a mid='" + data.ID + "' href='" + readUrlR.replace('0', data.ID) + "' >" + data.Channel + " : " + data.Name + " : " + data.Message + "</a></p>");
+            $('#messagesR a').on("click", function (e) {
+                e.preventDefault();
+                chat.server.notifyRead($(this).attr("mid"));
+                window.location.href = $(this).attr("href");
+            })
+        }
+    </script>
+</body>
+</html>
